@@ -65,6 +65,27 @@ def auth(auth):
     open(auth, "w").write(json.dumps(auth_data, indent=4) + "\n")
     click.echo("Authentication tokens written to {}".format(auth))
 
+@cli.command()
+@click.argument(
+    "db_path",
+    type=click.Path(file_okay=True, dir_okay=False, allow_dash=False),
+    required=True,
+)
+@click.option(
+    "-a",
+    "--auth",
+    type=click.Path(file_okay=True, dir_okay=False, allow_dash=False),
+    default="auth.json",
+    help="Path to auth tokens, defaults to auth.json",
+)
+@click.option("--all", is_flag=True, help="Fetch all items (not just new ones)")
+@click.option("-s", "--silent", is_flag=True, help="Don't show progress bar")
+def categorize(db_path, auth, all, silent):
+    print("Categorizing items...")
+    auth = json.load(open(auth))
+    db = sqlite_utils.Database(db_path)
+    print (db["items"].count)
+    utils.categorize_items(db)
 
 @cli.command()
 @click.argument(

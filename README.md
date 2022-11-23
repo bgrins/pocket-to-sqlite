@@ -56,6 +56,7 @@ datasette -p 3000 .
 ## Development notes
 
 * `pocket-to-sqlite auth` seems to need to be run twice. First time
+* After making a change run `pip install . && pocket-to-sqlite`
 
 ```
     "pocket_username": codes["username"],
