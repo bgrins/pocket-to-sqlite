@@ -40,7 +40,7 @@ def save_items(items, db):
 def categorize_items(items, db):
     # db["categorizations1"].delete()
     for item in items:
-        print(item["item_id"], item["resolved_url"])
+        print("Fetching", item["item_id"], item["resolved_url"])
 
         req = False
         err = False
@@ -48,7 +48,7 @@ def categorize_items(items, db):
 
         try:
             # Fetch the content of the page to save it in the database
-            req = requests.get(item["resolved_url"])
+            req = requests.get(item["resolved_url"], timeout=10)
             html = req.text
             if req.status_code != 200:
                 err = "Status " + str(req.status_code) + " " + html
@@ -95,6 +95,7 @@ def categorize_items(items, db):
             "scores": scores,
             "embeddings": embeddings,
             "created_at": datetime.datetime.now(),
+            "synced": False,
         }
         print("Categorization:", categorization)
         db["auto_categories"].insert(

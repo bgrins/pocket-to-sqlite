@@ -67,3 +67,22 @@ KeyError: 'username'
 and the second time it writes to auth.json
 
 * if changing schema you can drop the table with `sqlite-utils drop-table pocket.db auto_categories`
+
+Example queries:
+
+```
+select auto_categories.top_category, auto_categories.likely_categories, items.item_id, items.resolved_url  from auto_categories INNER JOIN items on auto_categories.item_id = items.item_id
+```
+```
+select count(*) c, top_category from auto_categories where error is null group by top_category order by c desc
+```
+```
+select auto_categories.top_category, auto_categories.likely_categories, items.item_id, items.resolved_url, items.resolved_title from auto_categories INNER JOIN items on auto_categories.item_id = items.item_id WHERE auto_categories.top_category="Health"
+```
+
+```
+SELECT * FROM items WHERE item_id NOT IN (SELECT item_id FROM auto_categories)
+```
+http://localhost:3000/pocket.json?sql=select+auto_categories.top_category%2C+auto_categories.likely_categories%2C+items.item_id%2C+items.resolved_url%2C+items.resolved_title+from+auto_categories+INNER+JOIN+items+on+auto_categories.item_id+%3D+items.item_id+WHERE+auto_categories.top_category%3D%22Health%22
+
+http://localhost:3000/pocket?sql=SELECT+COUNT%28*%29%2C+top_category+from+auto_categories+where+error+is+null+group+by+top_category#g.mark=bar&g.x_column=top_category&g.x_type=ordinal&g.y_column=COUNT(*)&g.y_type=quantitative

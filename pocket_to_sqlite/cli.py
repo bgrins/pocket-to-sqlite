@@ -79,11 +79,24 @@ def auth(auth):
     help="Path to auth tokens, defaults to auth.json",
 )
 @click.option("--errors", is_flag=True, help="Process items which have errors from previous categorization")
+@click.option("--sync", is_flag=True, help="Send already processed item tags back to Pocket")
 @click.option("-s", "--silent", is_flag=True, help="Don't show progress bar")
-def categorize(db_path, auth, errors, silent):
-    print("Categorizing items...")
+def categorize(db_path, auth, sync, errors, silent):
     auth = json.load(open(auth))
     db = sqlite_utils.Database(db_path)
+
+    if (sync):
+        categorized_and_not_synced = []
+
+        if db["auto_categories"].exists():
+            categorized_and_not_synced = db.query("select * from auto_categories where synced = 0 and error is not null")
+
+        for auto_category in categorized_and_not_synced:
+            print("Woudl be syncing item", auto_category["item_id"], auto_category["top_category"])
+        
+        return
+    
+    print("Categorizing items...")
     uncategorized = []
 
     if db["auto_categories"].exists():
