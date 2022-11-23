@@ -6,7 +6,7 @@ import requests
 import sqlite_utils
 from . import utils
 
-CONSUMER_KEY = "87988-a6fd295a556dbdb47960ec60"
+CONSUMER_KEY = "104708-da187ce0e7f8646d64a06a8"
 
 
 @click.group()

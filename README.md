@@ -36,3 +36,30 @@ You can force it to fetch everything from the beginning again using `--all`. Use
 ## Using with Datasette
 
 The SQLite database produced by this tool is designed to be browsed using [Datasette](https://datasette.readthedocs.io/). Use the [datasette-render-timestamps](https://github.com/simonw/datasette-render-timestamps) plugin to improve the display of the timestamp values.
+
+## How to develop
+```
+python3 -m venv ./venv
+source ./venv/bin/activate
+pip install .
+
+# Now `pocket-to-sqlite` will refer to ./venv/bin/pocket-to-sqlite
+
+mkdir venv/data
+cd venv/data
+pocket-to-sqlite auth # Twice (see note below)
+pocket-to-sqlite fetch pocket.db
+datasette -p 3000 .
+
+```
+
+## Development notes
+
+* `pocket-to-sqlite auth` seems to need to be run twice. First time
+
+```
+    "pocket_username": codes["username"],
+KeyError: 'username'
+```
+
+and the second time it writes to auth.json
