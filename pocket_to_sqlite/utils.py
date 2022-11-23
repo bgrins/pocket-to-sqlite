@@ -4,7 +4,7 @@ import json
 import time
 from homepage2vec.model import WebsiteClassifier, Webpage
 from sqlite_utils.db import AlterError, ForeignKey
-
+import hashlib
 
 def save_items(items, db):
     for item in items:
@@ -37,22 +37,70 @@ def save_items(items, db):
                 replace=True,
             )
 
-def categorize_items(db):
+def categorize_items(items, db):
     # db["categorizations1"].delete()
-    categorizations = []
-    categorizations.append(
-        {
-        "item_id": int(616459),
-        "error": "",
-        "scores": "test",
-        "embeddings": "test",
+    for item in items:
+        print(item["item_id"], item["resolved_url"])
+
+        req = False
+        err = False
+        html = False
+
+        try:
+            # Fetch the content of the page to save it in the database
+            req = requests.get(item["resolved_url"])
+            html = req.text
+            if req.status_code != 200:
+                err = "Status " + str(req.status_code) + " " + html
+        except Exception as inst:
+            err = str(inst)
+            print(err)
+
+        if err:
+            categorization = {
+                "item_id": item["item_id"],
+                "error": err
+            }
+            db["auto_categories"].insert(
+                categorization,
+                foreign_keys=("items", "item_id"),
+                replace=True)
+            continue
+
+        # Could fetch the website like this but it's easier to reproduce
+        # if we request ourselves and process it separately
+        # model = WebsiteClassifier()
+        # website = model.fetch_website(item["resolved_url"])
+        # scores, embeddings = model.predict(website)
+
+        print("Received " + str(len(html)) + " chars")
+        model = WebsiteClassifier()
+        website = Webpage(item["resolved_url"])
+        website.html = html
+        scores, embeddings = model.predict(website)
+
+        # Given "scores" as a generator that looks like {"Arts": 0.6156846880912781, "Business": 0.3619343638420105, "Computers": 0.8148682117462158, "Games": 0.28710833191871643, "Health": 0.4017010033130646, "Home": 0.22346019744873047, "Kids_and_Teens": 0.306125283241272, "News": 0.7160046696662903, "Recreation": 0.2587287724018097, "Reference": 0.6425570249557495, "Science": 0.7425054311752319, "Shopping": 0.17683619260787964, "Society": 0.6040355563163757, "Sports": 0.08852018415927887}
+        # Return a list of categories that have a score of 0.5 or higher
+        # e.g. ["Arts", "Computers", "News", "Reference", "Science", "Society"]
+        likely_categories = [k for k, v in scores.items() if v >= 0.5]
+        top_category = max(scores, key=scores.get)
+
+        categorization = {
+            "item_id": item["item_id"],
+            "error": None,
+            "html": html,
+            "html_md5": hashlib.md5(html.encode("utf-8")).hexdigest(),  
+            "likely_categories": likely_categories,
+            "top_category": top_category,
+            "scores": scores,
+            "embeddings": embeddings,
+            "created_at": datetime.datetime.now(),
         }
-    )
-    db["categorizations1"].insert_all(
-        categorizations,
-        foreign_keys=("items", "item_id"),
-        replace=True,
-    )
+        print("Categorization:", categorization)
+        db["auto_categories"].insert(
+            categorization,
+            foreign_keys=("items", "item_id"),
+            replace=True)
 
 def transform(item):
     for key in (

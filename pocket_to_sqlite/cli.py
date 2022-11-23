@@ -78,14 +78,20 @@ def auth(auth):
     default="auth.json",
     help="Path to auth tokens, defaults to auth.json",
 )
-@click.option("--all", is_flag=True, help="Fetch all items (not just new ones)")
+@click.option("--errors", is_flag=True, help="Process items which have errors from previous categorization")
 @click.option("-s", "--silent", is_flag=True, help="Don't show progress bar")
-def categorize(db_path, auth, all, silent):
+def categorize(db_path, auth, errors, silent):
     print("Categorizing items...")
     auth = json.load(open(auth))
     db = sqlite_utils.Database(db_path)
-    print (db["items"].count)
-    utils.categorize_items(db)
+    uncategorized = []
+
+    if db["auto_categories"].exists():
+        uncategorized = db.query("SELECT * FROM items WHERE item_id NOT IN (SELECT item_id FROM auto_categories)")
+    else:
+        uncategorized = db.query("SELECT * FROM items")
+
+    utils.categorize_items(uncategorized, db)
 
 @cli.command()
 @click.argument(

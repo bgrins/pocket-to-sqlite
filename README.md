@@ -41,7 +41,7 @@ The SQLite database produced by this tool is designed to be browsed using [Datas
 ```
 python3 -m venv ./venv
 source ./venv/bin/activate
-pip install .
+pip install --editable .
 
 # Now `pocket-to-sqlite` will refer to ./venv/bin/pocket-to-sqlite
 
@@ -51,12 +51,13 @@ pocket-to-sqlite auth # Twice (see note below)
 pocket-to-sqlite fetch pocket.db
 datasette -p 3000 .
 
+pocket-to-sqlite categorize pocket.db
+
 ```
 
 ## Development notes
 
 * `pocket-to-sqlite auth` seems to need to be run twice. First time
-* After making a change run `pip install . && pocket-to-sqlite`
 
 ```
     "pocket_username": codes["username"],
@@ -64,3 +65,5 @@ KeyError: 'username'
 ```
 
 and the second time it writes to auth.json
+
+* if changing schema you can drop the table with `sqlite-utils drop-table pocket.db auto_categories`
