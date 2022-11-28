@@ -40,7 +40,7 @@ def save_items(items, db):
             )
 
 def write_labels_to_pocket(autoclassifications,auth, db):
-    num_to_process = -1
+    num_to_process = -1 # Process all
     for autoclassification in autoclassifications:
 
         item_id = autoclassification["item_id"]
@@ -63,9 +63,10 @@ def write_labels_to_pocket(autoclassifications,auth, db):
 
         print(args)
         response = requests.get("https://getpocket.com/v3/send", args)
-        # Update the database to mark the item as synced
-        cursor = db.execute(
-            "UPDATE auto_tags SET synced = 1 WHERE item_id = ?", [item_id]
+
+        # Extend the items with synced=1
+        db["auto_tags"].update(
+            item_id, {"synced": 1}
         )
 
         num_to_process -= 1
