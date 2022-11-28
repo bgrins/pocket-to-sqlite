@@ -6,6 +6,8 @@ from homepage2vec.model import WebsiteClassifier, Webpage
 from sqlite_utils.db import AlterError, ForeignKey
 import hashlib
 
+model = WebsiteClassifier()
+
 def save_items(items, db):
     for item in items:
         transform(item)
@@ -37,10 +39,47 @@ def save_items(items, db):
                 replace=True,
             )
 
+def write_labels_to_pocket(autoclassifications,auth, db):
+    num_to_process = -1
+    for autoclassification in autoclassifications:
+
+        item_id = autoclassification["item_id"]
+        top_category = "autotag-{}".format(autoclassification["top_category"]).lower()
+
+        print("Writing tag {} to item {}".format(top_category, item_id))
+        args = {
+            "consumer_key": auth["pocket_consumer_key"],
+            "access_token": auth["pocket_access_token"],
+            "actions": json.dumps(
+                [
+                    {
+                        "action": "tags_add",
+                        "item_id": item_id,
+                        "tags": top_category,
+                    }
+                ]
+            ),
+        }
+
+        print(args)
+        response = requests.get("https://getpocket.com/v3/send", args)
+        # Update the database to mark the item as synced
+        cursor = db.execute(
+            "UPDATE auto_tags SET synced = 1 WHERE item_id = ?", [item_id]
+        )
+
+        num_to_process -= 1
+        if num_to_process == 0:
+            break
+
 def categorize_items(items, db):
     # db["categorizations1"].delete()
     for item in items:
-        print("Fetching", item["item_id"], item["resolved_url"])
+        # assign resolve_url to either resolved_url or given_url
+        resolved_url = item.get("resolved_url", item.get("given_url"))
+
+        if (resolved_url is None):
+            continue
 
         req = False
         err = False
@@ -48,7 +87,7 @@ def categorize_items(items, db):
 
         try:
             # Fetch the content of the page to save it in the database
-            req = requests.get(item["resolved_url"], timeout=10)
+            req = requests.get(resolved_url, timeout=10)
             html = req.text
             if req.status_code != 200:
                 err = "Status " + str(req.status_code) + " " + html
@@ -61,10 +100,10 @@ def categorize_items(items, db):
                 "item_id": item["item_id"],
                 "error": err
             }
-            db["auto_categories"].insert(
+            db["auto_tags"].upsert(
                 categorization,
-                foreign_keys=("items", "item_id"),
-                replace=True)
+                pk="item_id",
+                foreign_keys=("items", "item_id"))
             continue
 
         # Could fetch the website like this but it's easier to reproduce
@@ -73,8 +112,7 @@ def categorize_items(items, db):
         # website = model.fetch_website(item["resolved_url"])
         # scores, embeddings = model.predict(website)
 
-        print("Received " + str(len(html)) + " chars")
-        model = WebsiteClassifier()
+        print("Received {} chars from {}".format(str(len(html)), resolved_url))
         website = Webpage(item["resolved_url"])
         website.html = html
         scores, embeddings = model.predict(website)
@@ -98,10 +136,10 @@ def categorize_items(items, db):
             "synced": False,
         }
         print("Categorization:", categorization)
-        db["auto_categories"].insert(
+        db["auto_tags"].upsert(
             categorization,
-            foreign_keys=("items", "item_id"),
-            replace=True)
+            pk="item_id",
+            foreign_keys=("items", "item_id"))
 
 def transform(item):
     for key in (

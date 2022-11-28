@@ -88,19 +88,20 @@ def categorize(db_path, auth, sync, errors, silent):
     if (sync):
         categorized_and_not_synced = []
 
-        if db["auto_categories"].exists():
-            categorized_and_not_synced = db.query("select * from auto_categories where synced = 0 and error is not null")
+        if db["auto_tags"].exists():
+            categorized_and_not_synced = db.query("select * from auto_tags where synced is null and error is null")
 
-        for auto_category in categorized_and_not_synced:
-            print("Woudl be syncing item", auto_category["item_id"], auto_category["top_category"])
-        
+        utils.write_labels_to_pocket(categorized_and_not_synced, auth, db)
         return
     
     print("Categorizing items...")
     uncategorized = []
 
-    if db["auto_categories"].exists():
-        uncategorized = db.query("SELECT * FROM items WHERE item_id NOT IN (SELECT item_id FROM auto_categories)")
+    if db["auto_tags"].exists():
+        if errors:
+            uncategorized = db.query("select * FROM items WHERE item_id IN (SELECT item_id FROM auto_tags where error is NOT NULL)")
+        else:
+            uncategorized = db.query("SELECT * FROM items WHERE item_id NOT IN (SELECT item_id FROM auto_tags)")
     else:
         uncategorized = db.query("SELECT * FROM items")
 
