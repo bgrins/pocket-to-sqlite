@@ -79,9 +79,16 @@ def auth(auth):
     help="Path to auth tokens, defaults to auth.json",
 )
 @click.option("--errors", is_flag=True, help="Process items which have errors from previous categorization")
+@click.option("--save-html", 
+    type=click.Path(file_okay=False, dir_okay=True, allow_dash=False), help="Save html into the specified folder")
 @click.option("--sync", is_flag=True, help="Send already processed item tags back to Pocket")
+@click.option("--sync-num", default=-1, type=click.INT, help="How many to sync (-1 for all)")
 @click.option("-s", "--silent", is_flag=True, help="Don't show progress bar")
-def categorize(db_path, auth, sync, errors, silent):
+@click.option(
+    "--categorize-url",
+    help="URL to use for classification (optional)",
+)
+def categorize(db_path, auth, sync, sync_num, errors, save_html, silent, categorize_url):
     auth = json.load(open(auth))
     db = sqlite_utils.Database(db_path)
 
@@ -89,9 +96,14 @@ def categorize(db_path, auth, sync, errors, silent):
         categorized_and_not_synced = []
 
         if db["auto_tags"].exists():
-            categorized_and_not_synced = db.query("select * from auto_tags where synced is null and error is null")
+            categorized_and_not_synced = db.query("select * from auto_tags where synced <> 1 and error is null")
 
-        utils.write_labels_to_pocket(categorized_and_not_synced, auth, db)
+        num_to_process = sync_num
+        for unsynced in categorized_and_not_synced:
+            utils.write_labels_to_pocket(unsynced, auth, db)
+            num_to_process -= 1
+            if num_to_process == 0:
+                break
         return
     
     print("Categorizing items...")
@@ -105,7 +117,17 @@ def categorize(db_path, auth, sync, errors, silent):
     else:
         uncategorized = db.query("SELECT * FROM items")
 
-    utils.categorize_items(uncategorized, db)
+    for item in uncategorized:
+        categorize_result = utils.categorize_item(item, categorize_url, save_html, silent)
+
+        if categorize_result["error"] == True:
+            print("Error categorizing item: {}".format(categorize_result["categorization"]))
+
+        db["auto_tags"].upsert(
+            categorize_result["categorization"],
+            pk="item_id",
+            foreign_keys=("items", "item_id"))
+
 
 @cli.command()
 @click.argument(

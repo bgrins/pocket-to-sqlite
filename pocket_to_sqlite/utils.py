@@ -5,6 +5,7 @@ import time
 from homepage2vec.model import WebsiteClassifier, Webpage
 from sqlite_utils.db import AlterError, ForeignKey
 import hashlib
+import os
 
 model = WebsiteClassifier()
 
@@ -39,108 +40,151 @@ def save_items(items, db):
                 replace=True,
             )
 
-def write_labels_to_pocket(autoclassifications,auth, db):
-    num_to_process = -1 # Process all
-    for autoclassification in autoclassifications:
+def write_labels_to_pocket(autoclassification,auth, db):
+    item_id = autoclassification["item_id"]
+    top_category = "autotag-{}".format(autoclassification["top_category"]).lower()
 
-        item_id = autoclassification["item_id"]
-        top_category = "autotag-{}".format(autoclassification["top_category"]).lower()
+    print("Writing tag {} to item {}".format(top_category, item_id))
+    args = {
+        "consumer_key": auth["pocket_consumer_key"],
+        "access_token": auth["pocket_access_token"],
+        "actions": json.dumps(
+            [
+                {
+                    "action": "tags_add",
+                    "item_id": item_id,
+                    "tags": top_category,
+                }
+            ]
+        ),
+    }
 
-        print("Writing tag {} to item {}".format(top_category, item_id))
-        args = {
-            "consumer_key": auth["pocket_consumer_key"],
-            "access_token": auth["pocket_access_token"],
-            "actions": json.dumps(
-                [
-                    {
-                        "action": "tags_add",
-                        "item_id": item_id,
-                        "tags": top_category,
-                    }
-                ]
-            ),
+    print(args)
+    response = requests.get("https://getpocket.com/v3/send", args)
+    print (response.text)
+    # Extend the items with synced=1
+    db["auto_tags"].update(
+        item_id, {"synced": 1}
+    )
+
+
+def categorize_item(item, categorize_url, save_html, silent):
+    # assign resolve_url to either resolved_url or given_url
+    resolved_url = item.get("resolved_url", item.get("given_url"))
+
+    if (resolved_url is None):
+        return
+
+    req = False
+    err = False
+    html = False
+
+    try:
+        # Fetch the content of the page to save it in the database
+        req = requests.get(resolved_url, timeout=10)
+        html = req.text
+        if req.status_code != 200:
+            err = "Status " + str(req.status_code) + " " + html
+    except Exception as inst:
+        err = str(inst)
+        print(err)
+
+    if err:
+        return {
+            "error": True,
+            "categorization": {
+                "item_id": item["item_id"],
+                "error": err
+            }
         }
 
-        print(args)
-        response = requests.get("https://getpocket.com/v3/send", args)
+    print("Received {} chars from {}".format(str(len(html)), resolved_url))
 
-        # Extend the items with synced=1
-        db["auto_tags"].update(
-            item_id, {"synced": 1}
-        )
+    if save_html:
+        # Save html to a file, using an escaped version of resolve_url
+        # as the filename
+        # Save html to a file using a cleaned up version of the url
+        valid_chars = '-_.() abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+        filename = save_html + "/" +''.join(c for c in resolved_url.replace("/", "_") if c in valid_chars)
+        os.makedirs(os.path.dirname(filename), exist_ok=True)
 
-        num_to_process -= 1
-        if num_to_process == 0:
-            break
+        with open(filename, "w") as f:
+            f.write(html)
+    
+    scores = None
+    embeddings = None
+    process_time = time.time()
 
-def categorize_items(items, db):
-    # db["categorizations1"].delete()
-    for item in items:
-        # assign resolve_url to either resolved_url or given_url
-        resolved_url = item.get("resolved_url", item.get("given_url"))
-
-        if (resolved_url is None):
-            continue
-
-        req = False
-        err = False
-        html = False
-
+    if not categorize_url:
+        website = Webpage(item["resolved_url"])
+        website.html = html
+        scores, embeddings = model.predict(website)
+        process_time = time.time() - process_time
+        print("Predicted locally in {} seconds".format(process_time))
+    else:
         try:
-            # Fetch the content of the page to save it in the database
-            req = requests.get(resolved_url, timeout=10)
-            html = req.text
+            # Send the request to the homepage2vec server
+            req = requests.post(categorize_url,
+                headers={
+                    'accept': 'application/json',
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer 1234',
+                },
+                json={
+                    "url": resolved_url,
+                    "html": html
+                })
             if req.status_code != 200:
-                err = "Status " + str(req.status_code) + " " + html
+                err = "Status " + str(req.status_code) + " " + req.text
         except Exception as inst:
             err = str(inst)
             print(err)
 
         if err:
-            categorization = {
-                "item_id": item["item_id"],
-                "error": err
+            return {
+                "error": True,
+                "categorization": {
+                    "item_id": item["item_id"],
+                    "error": err
+                }
             }
-            db["auto_tags"].upsert(
-                categorization,
-                pk="item_id",
-                foreign_keys=("items", "item_id"))
-            continue
 
-        # Could fetch the website like this but it's easier to reproduce
-        # if we request ourselves and process it separately
-        # model = WebsiteClassifier()
-        # website = model.fetch_website(item["resolved_url"])
-        # scores, embeddings = model.predict(website)
+        process_time = time.time() - process_time
+        print("Predicted remotely in {} seconds".format(process_time))
+        json = req.json()
+        scores = json["scores"]
+        embeddings = json["embeddings"]
 
-        print("Received {} chars from {}".format(str(len(html)), resolved_url))
-        website = Webpage(item["resolved_url"])
-        website.html = html
-        scores, embeddings = model.predict(website)
+    # Given "scores" as a generator that looks like {"Arts": 0.6156846880912781, "Business": 0.3619343638420105, "Computers": 0.8148682117462158, "Games": 0.28710833191871643, "Health": 0.4017010033130646, "Home": 0.22346019744873047, "Kids_and_Teens": 0.306125283241272, "News": 0.7160046696662903, "Recreation": 0.2587287724018097, "Reference": 0.6425570249557495, "Science": 0.7425054311752319, "Shopping": 0.17683619260787964, "Society": 0.6040355563163757, "Sports": 0.08852018415927887}
+    # Return a list of categories that have a score of 0.5 or higher
+    # e.g. ["Arts", "Computers", "News", "Reference", "Science", "Society"]
+    likely_categories = [k for k, v in scores.items() if v >= 0.5]
+    top_category = max(scores, key=scores.get)
 
-        # Given "scores" as a generator that looks like {"Arts": 0.6156846880912781, "Business": 0.3619343638420105, "Computers": 0.8148682117462158, "Games": 0.28710833191871643, "Health": 0.4017010033130646, "Home": 0.22346019744873047, "Kids_and_Teens": 0.306125283241272, "News": 0.7160046696662903, "Recreation": 0.2587287724018097, "Reference": 0.6425570249557495, "Science": 0.7425054311752319, "Shopping": 0.17683619260787964, "Society": 0.6040355563163757, "Sports": 0.08852018415927887}
-        # Return a list of categories that have a score of 0.5 or higher
-        # e.g. ["Arts", "Computers", "News", "Reference", "Science", "Society"]
-        likely_categories = [k for k, v in scores.items() if v >= 0.5]
-        top_category = max(scores, key=scores.get)
+    categorization = {
+        "item_id": item["item_id"],
+        "error": None,
+        "html": html,
+        "html_md5": hashlib.md5(html.encode("utf-8")).hexdigest(),  
+        "likely_categories": likely_categories,
+        "top_category": top_category,
+        "scores": scores,
+        "embeddings": embeddings,
+        "process_time": process_time,
+        "created_at": datetime.datetime.now(),
+        "synced": False,
+    }
+    print("Top category for {} (item id {}): {}".format(resolved_url, item["item_id"], top_category))
 
-        categorization = {
-            "item_id": item["item_id"],
-            "error": None,
-            "html": html,
-            "html_md5": hashlib.md5(html.encode("utf-8")).hexdigest(),  
-            "likely_categories": likely_categories,
-            "top_category": top_category,
-            "scores": scores,
-            "embeddings": embeddings,
-            "created_at": datetime.datetime.now(),
-            "synced": False,
-        }
-        print("Categorization:", categorization)
-        db["auto_tags"].upsert(
-            categorization,
-            pk="item_id",
-            foreign_keys=("items", "item_id"))
+    return {
+        "error": False,
+        "categorization": categorization
+    }
+    
+    db["auto_tags"].upsert(
+        categorization,
+        pk="item_id",
+        foreign_keys=("items", "item_id"))
 
 def transform(item):
     for key in (
