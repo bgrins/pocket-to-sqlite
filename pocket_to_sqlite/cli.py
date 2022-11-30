@@ -1,3 +1,6 @@
+from concurrent.futures import ThreadPoolExecutor
+from itertools import repeat
+import time
 import click
 import json
 import urllib.parse
@@ -111,23 +114,56 @@ def categorize(db_path, auth, sync, sync_num, errors, save_html, silent, categor
 
     if db["auto_tags"].exists():
         if errors:
-            uncategorized = db.query("select * FROM items WHERE item_id IN (SELECT item_id FROM auto_tags where error is NOT NULL)")
+            uncategorized = db.query("select * FROM items WHERE status=0 AND item_id IN (SELECT item_id FROM auto_tags where error is NOT NULL)")
         else:
-            uncategorized = db.query("SELECT * FROM items WHERE item_id NOT IN (SELECT item_id FROM auto_tags)")
+            uncategorized = db.query("SELECT * FROM items WHERE status=0 AND item_id NOT IN (SELECT item_id FROM auto_tags)")
     else:
-        uncategorized = db.query("SELECT * FROM items")
+        db.execute("""
+            CREATE TABLE [auto_tags] (
+            [item_id] INTEGER PRIMARY KEY REFERENCES [items]([item_id]),
+            [error] TEXT,
+            [html] TEXT,
+            [html_md5] TEXT,
+            [likely_categories] TEXT,
+            [top_category] TEXT,
+            [scores] TEXT,
+            [embeddings] TEXT,
+            [process_time] FLOAT,
+            [created_at] TEXT,
+            [synced] INTEGER
+        )""")
 
-    for item in uncategorized:
-        categorize_result = utils.categorize_item(item, categorize_url, save_html, silent)
+        uncategorized = db.query("SELECT * FROM items WHERE status=0")
 
-        if categorize_result["error"] == True:
-            print("Error categorizing item: {}".format(categorize_result["categorization"]))
+    # Operate in parallel if categorization is happening remotely
+    if categorize_url:
+        uncategorized = list(uncategorized)
+        num_results = 0
+        total_items = len(uncategorized)
+        print("Entering parallel processing for {} items".format(total_items))
+        t1 = time.time()
+        for categorize_result in ThreadPoolExecutor(max_workers=6).map(utils.categorize_item, uncategorized, repeat(categorize_url), repeat(save_html)):
+            num_results += 1
+            print("Received result #{}/{} - {:.2f} seconds since start (item_id {})".format(num_results, total_items, time.time() - t1, categorize_result["categorization"]["item_id"]))
+            if categorize_result["error"] == True:
+                print("Error categorizing item {}: {}".format(categorize_result["categorization"]["item_id"], categorize_result["categorization"]["error"][:100] ))
+            db["auto_tags"].upsert(
+                categorize_result["categorization"],
+                pk="item_id",
+                foreign_keys=("items", "item_id"))
+    
+        print("Predicted {} results in {:.2f} seconds".format(total_items, time.time() - t1))
+    else:
+        for item in uncategorized:
+            categorize_result = utils.categorize_item(item, categorize_url, save_html)
 
-        db["auto_tags"].upsert(
-            categorize_result["categorization"],
-            pk="item_id",
-            foreign_keys=("items", "item_id"))
+            if categorize_result["error"] == True:
+                print("Error categorizing item: {}".format(categorize_result["categorization"]))
 
+            db["auto_tags"].upsert(
+                categorize_result["categorization"],
+                pk="item_id",
+                foreign_keys=("items", "item_id"))
 
 @cli.command()
 @click.argument(

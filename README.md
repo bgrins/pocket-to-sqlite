@@ -49,7 +49,7 @@ mkdir venv/data
 cd venv/data
 pocket-to-sqlite auth # Twice (see note below)
 pocket-to-sqlite fetch pocket.db
-datasette -p 3000 .
+datasette -p 8001 -m ../../metadata.json pocket.db
 
 pocket-to-sqlite categorize pocket.db
 
@@ -67,6 +67,8 @@ KeyError: 'username'
 and the second time it writes to auth.json
 
 * if changing schema you can drop the table with `sqlite-utils drop-table pocket.db auto_categories`
+
+
 
 Example queries:
 

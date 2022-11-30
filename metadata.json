@@ -1,0 +1,63 @@
+{
+  "databases": {
+     "pocket": {
+         "queries": {
+          "autotag_summary": {
+              "sql": "select count(*) c, top_category from auto_tags where error is null group by top_category order by c desc"
+          },
+             "joined_items_autotags": {
+                 "sql": "select auto_tags.top_category, auto_tags.likely_categories, items.resolved_title, items.item_id, items.resolved_url from auto_tags INNER JOIN items on auto_tags.item_id = items.item_id"
+             },
+             "joined_items_tags": {
+                 "sql": "select tags.tag, items.resolved_title, items.item_id, items.resolved_url from tags INNER JOIN items on tags.item_id = items.item_id"
+             },
+              "joined_items_tags_autotags": {
+                  "sql": "select auto_tags.top_category, auto_tags.likely_categories, tags.tag, items.resolved_title, items.item_id, items.resolved_url from auto_tags INNER JOIN items on auto_tags.item_id = items.item_id INNER JOIN tags on tags.item_id = items.item_id"
+              },
+              "arts": {
+                "sql": "select auto_tags.top_category, auto_tags.likely_categories, items.item_id, items.resolved_url, items.resolved_title from auto_tags INNER JOIN items on auto_tags.item_id = items.item_id WHERE auto_tags.top_category='Arts'"
+              },
+              "business": {
+                "sql": "select auto_tags.top_category, auto_tags.likely_categories, items.item_id, items.resolved_url, items.resolved_title from auto_tags INNER JOIN items on auto_tags.item_id = items.item_id WHERE auto_tags.top_category='Business'"
+              },
+              "computers": {
+                "sql": "select auto_tags.top_category, auto_tags.likely_categories, items.item_id, items.resolved_url, items.resolved_title from auto_tags INNER JOIN items on auto_tags.item_id = items.item_id WHERE auto_tags.top_category='Computers'"
+              },
+              "games": {
+                "sql": "select auto_tags.top_category, auto_tags.likely_categories, items.item_id, items.resolved_url, items.resolved_title from auto_tags INNER JOIN items on auto_tags.item_id = items.item_id WHERE auto_tags.top_category='Games'"
+              },
+              "health": {
+                  "sql": "select auto_tags.top_category, auto_tags.likely_categories, items.item_id, items.resolved_url, items.resolved_title from auto_tags INNER JOIN items on auto_tags.item_id = items.item_id WHERE auto_tags.top_category='Health'"
+              },
+              "home": {
+                  "sql": "select auto_tags.top_category, auto_tags.likely_categories, items.item_id, items.resolved_url, items.resolved_title from auto_tags INNER JOIN items on auto_tags.item_id = items.item_id WHERE auto_tags.top_category='Home'"
+              },
+              "kids_and_teens": {
+                  "sql": "select auto_tags.top_category, auto_tags.likely_categories, items.item_id, items.resolved_url, items.resolved_title from auto_tags INNER JOIN items on auto_tags.item_id = items.item_id WHERE auto_tags.top_category='Kids_and_Teens'"
+              },
+              "news": {
+                  "sql": "select auto_tags.top_category, auto_tags.likely_categories, items.item_id, items.resolved_url, items.resolved_title from auto_tags INNER JOIN items on auto_tags.item_id = items.item_id WHERE auto_tags.top_category='News'"
+              },
+              "recreation": {
+                  "sql": "select auto_tags.top_category, auto_tags.likely_categories, items.item_id, items.resolved_url, items.resolved_title from auto_tags INNER JOIN items on auto_tags.item_id = items.item_id WHERE auto_tags.top_category='Recreation'"
+              },
+              "reference": {
+                  "sql": "select auto_tags.top_category, auto_tags.likely_categories, items.item_id, items.resolved_url, items.resolved_title from auto_tags INNER JOIN items on auto_tags.item_id = items.item_id WHERE auto_tags.top_category='Reference'"
+              },
+              "science": {
+                  "sql": "select auto_tags.top_category, auto_tags.likely_categories, items.item_id, items.resolved_url, items.resolved_title from auto_tags INNER JOIN items on auto_tags.item_id = items.item_id WHERE auto_tags.top_category='Science'"
+              },
+              "shopping": {
+                  "sql": "select auto_tags.top_category, auto_tags.likely_categories, items.item_id, items.resolved_url, items.resolved_title from auto_tags INNER JOIN items on auto_tags.item_id = items.item_id WHERE auto_tags.top_category='Shopping'"
+              },
+              "society": {
+                  "sql": "select auto_tags.top_category, auto_tags.likely_categories, items.item_id, items.resolved_url, items.resolved_title from auto_tags INNER JOIN items on auto_tags.item_id = items.item_id WHERE auto_tags.top_category='Society'"
+              },
+              "sports": {
+                  "sql": "select auto_tags.top_category, auto_tags.likely_categories, items.item_id, items.resolved_url, items.resolved_title from auto_tags INNER JOIN items on auto_tags.item_id = items.item_id WHERE auto_tags.top_category='Sports'"
+              }
+
+         }
+     }
+  }
+}

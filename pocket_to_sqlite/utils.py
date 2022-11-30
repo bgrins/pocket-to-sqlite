@@ -68,12 +68,18 @@ def write_labels_to_pocket(autoclassification,auth, db):
     )
 
 
-def categorize_item(item, categorize_url, save_html, silent):
+def categorize_item(item, categorize_url, save_html):
     # assign resolve_url to either resolved_url or given_url
     resolved_url = item.get("resolved_url", item.get("given_url"))
 
     if (resolved_url is None):
-        return
+        return {
+            "error": True,
+            "categorization": {
+                "item_id": item["item_id"],
+                "error": "No resolved_url or given_url",
+            }
+        }
 
     req = False
     err = False
@@ -120,7 +126,7 @@ def categorize_item(item, categorize_url, save_html, silent):
         website.html = html
         scores, embeddings = model.predict(website)
         process_time = time.time() - process_time
-        print("Predicted locally in {} seconds".format(process_time))
+        print("Predicted locally in {:.2f} seconds".format(process_time))
     else:
         try:
             # Send the request to the homepage2vec server
@@ -150,7 +156,7 @@ def categorize_item(item, categorize_url, save_html, silent):
             }
 
         process_time = time.time() - process_time
-        print("Predicted remotely in {} seconds".format(process_time))
+        print("Predicted remotely in {:.2f} seconds".format(process_time))
         json = req.json()
         scores = json["scores"]
         embeddings = json["embeddings"]
@@ -180,11 +186,6 @@ def categorize_item(item, categorize_url, save_html, silent):
         "error": False,
         "categorization": categorization
     }
-    
-    db["auto_tags"].upsert(
-        categorization,
-        pk="item_id",
-        foreign_keys=("items", "item_id"))
 
 def transform(item):
     for key in (
