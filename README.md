@@ -51,8 +51,8 @@ pocket-to-sqlite auth # Twice (see note below)
 pocket-to-sqlite fetch pocket.db
 datasette -p 8001 -m ../../metadata.json pocket.db
 
-pocket-to-sqlite categorize pocket.db
-
+pocket-to-sqlite autotag pocket.db
+pocket-to-sqlite autotag-sync pocket.db
 ```
 
 ## Development notes

@@ -59,9 +59,9 @@ def write_labels_to_pocket(autoclassification,auth, db):
         ),
     }
 
-    print(args)
+    # print(args)
     response = requests.get("https://getpocket.com/v3/send", args)
-    print (response.text)
+    print ("result {}".format(response.text))
     # Extend the items with synced=1
     db["auto_tags"].update(
         item_id, {"synced": 1}

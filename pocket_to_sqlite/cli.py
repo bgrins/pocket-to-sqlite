@@ -91,23 +91,9 @@ def auth(auth):
     "--categorize-url",
     help="URL to use for classification (optional)",
 )
-def categorize(db_path, auth, sync, sync_num, errors, save_html, silent, categorize_url):
+def autotag(db_path, auth, sync, sync_num, errors, save_html, silent, categorize_url):
     auth = json.load(open(auth))
     db = sqlite_utils.Database(db_path)
-
-    if (sync):
-        categorized_and_not_synced = []
-
-        if db["auto_tags"].exists():
-            categorized_and_not_synced = db.query("select * from auto_tags where synced <> 1 and error is null")
-
-        num_to_process = sync_num
-        for unsynced in categorized_and_not_synced:
-            utils.write_labels_to_pocket(unsynced, auth, db)
-            num_to_process -= 1
-            if num_to_process == 0:
-                break
-        return
     
     print("Categorizing items...")
     uncategorized = []
@@ -164,6 +150,38 @@ def categorize(db_path, auth, sync, sync_num, errors, save_html, silent, categor
                 categorize_result["categorization"],
                 pk="item_id",
                 foreign_keys=("items", "item_id"))
+
+@cli.command()
+@click.argument(
+    "db_path",
+    type=click.Path(file_okay=True, dir_okay=False, allow_dash=False),
+    required=True,
+)
+@click.option(
+    "-a",
+    "--auth",
+    type=click.Path(file_okay=True, dir_okay=False, allow_dash=False),
+    default="auth.json",
+    help="Path to auth tokens, defaults to auth.json",
+)
+@click.option("-n", "--num", default=-1, type=click.INT, help="How many to sync (-1 for all)")
+@click.option("-s", "--silent", is_flag=True, help="Don't show progress bar")
+def autotag_sync(db_path, auth, num, silent):
+    auth = json.load(open(auth))
+    db = sqlite_utils.Database(db_path)
+    categorized_and_not_synced = []
+
+    if db["auto_tags"].exists():
+        categorized_and_not_synced = db.query("select * from auto_tags where synced <> 1 and error is null")
+
+    categorized_and_not_synced = list(categorized_and_not_synced)
+    print("{} items remaining to sync".format(len(categorized_and_not_synced)))
+    num_to_process = num
+    for unsynced in categorized_and_not_synced:
+        utils.write_labels_to_pocket(unsynced, auth, db)
+        num_to_process -= 1
+        if num_to_process == 0:
+            break
 
 @cli.command()
 @click.argument(
